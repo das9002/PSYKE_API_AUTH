@@ -61,9 +61,9 @@ public class JwtService {
                 .getBody();
     }
 
-    public boolean esTokenValido(String token, UserDetails userDetails) {
+    public boolean esTokenValido(String token) {
         final String username = extraerUsername(token);
-        return (username.equals(userDetails.getUsername()) && !esTokenExpirado(token));
+        return username != null && !esTokenExpirado(token);
     }
 
     private boolean esTokenExpirado(String token) {

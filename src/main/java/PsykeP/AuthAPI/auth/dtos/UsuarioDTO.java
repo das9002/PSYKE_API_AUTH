@@ -14,5 +14,5 @@ public class UsuarioDTO {
     private Long idUsuario;
     private String correo;
     private String estadoCuenta;
-    private String rol;
+    private String tipoUsuario;
 }

@@ -4,13 +4,10 @@ import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
-import PsykeP.AuthAPI.auth.entities.RolSistema;
 import PsykeP.AuthAPI.auth.entities.Usuario;
-import PsykeP.AuthAPI.auth.repositories.RolSistemaRepository;
 import PsykeP.AuthAPI.auth.repositories.UsuarioRepository;
 import PsykeP.AuthAPI.exceptions.CorreoYaRegistradoException;
 import PsykeP.AuthAPI.exceptions.CredencialesInvalidasException;
-import PsykeP.AuthAPI.exceptions.RolNoEncontradoException;
 import PsykeP.AuthAPI.exceptions.UsuarioBloqueadoException;
 import PsykeP.AuthAPI.exceptions.UsuarioInactivoException;
 import PsykeP.AuthAPI.exceptions.UsuarioNoEncontradoException;
@@ -23,17 +20,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuthService {
 
     private final UsuarioRepository usuarioRepository;
-    private final RolSistemaRepository rolRepository;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional
     public AuthResponseDTO login(LoginRequestDTO request) {
         Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo())
                 .orElseThrow(() -> new CredencialesInvalidasException("Credenciales inválidas"));
@@ -48,6 +47,8 @@ public class AuthService {
             throw new CredencialesInvalidasException("Credenciales inválidas");
         }
 
+        usuario.setUltimaConexion(LocalDateTime.now());
+
         final String token = jwtService.generarToken(usuario);
 
         return AuthResponseDTO.builder()
@@ -55,7 +56,7 @@ public class AuthService {
                 .tipoToken("Bearer")
                 .idUsuario(usuario.getIdUsuario())
                 .correo(usuario.getCorreo())
-                .rol(usuario.getRol().getNombreRol())
+                .tipoUsuario(usuario.getTipoUsuario())
                 .expiraEn(jwtService.getJwtExpiration())
                 .build();
     }
@@ -66,14 +67,11 @@ public class AuthService {
             throw new CorreoYaRegistradoException("Ya existe un usuario registrado con el correo: " + request.getCorreo());
         }
 
-        RolSistema rol = rolRepository.findById(request.getIdRol())
-                .orElseThrow(() -> new RolNoEncontradoException("Rol no encontrado con el ID: " + request.getIdRol()));
-
         Usuario usuario = Usuario.builder()
                 .correo(request.getCorreo())
                 .contrasena(passwordEncoder.encode(request.getContrasena()))
                 .estadoCuenta("ACTIVO")
-                .rol(rol)
+                .tipoUsuario(request.getTipoUsuario())
                 .build();
 
         Usuario guardado = usuarioRepository.save(usuario);
@@ -84,7 +82,7 @@ public class AuthService {
                 .tipoToken("Bearer")
                 .idUsuario(guardado.getIdUsuario())
                 .correo(guardado.getCorreo())
-                .rol(guardado.getRol().getNombreRol())
+                .tipoUsuario(guardado.getTipoUsuario())
                 .expiraEn(jwtService.getJwtExpiration())
                 .build();
     }
@@ -97,7 +95,7 @@ public class AuthService {
                 .idUsuario(usuario.getIdUsuario())
                 .correo(usuario.getCorreo())
                 .estadoCuenta(usuario.getEstadoCuenta())
-                .rol(usuario.getRol().getNombreRol())
+                .tipoUsuario(usuario.getTipoUsuario())
                 .build();
     }
 

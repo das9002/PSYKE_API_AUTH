@@ -15,6 +15,6 @@ public class AuthResponseDTO {
     private String tipoToken;
     private Long idUsuario;
     private String correo;
-    private String rol;
+    private String tipoUsuario;
     private long expiraEn;
 }

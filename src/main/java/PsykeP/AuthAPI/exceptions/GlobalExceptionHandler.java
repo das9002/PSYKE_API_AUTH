@@ -34,11 +34,6 @@ public class GlobalExceptionHandler {
         return construirRespuesta(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
-    @ExceptionHandler(RolNoEncontradoException.class)
-    public ResponseEntity<ErrorResponse> handleRolNoEncontrado(RolNoEncontradoException ex) {
-        return construirRespuesta(HttpStatus.NOT_FOUND, ex.getMessage());
-    }
-
     @ExceptionHandler(CorreoYaRegistradoException.class)
     public ResponseEntity<ErrorResponse> handleCorreoYaRegistrado(CorreoYaRegistradoException ex) {
         return construirRespuesta(HttpStatus.CONFLICT, ex.getMessage());

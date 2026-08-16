@@ -5,8 +5,8 @@ API de autenticación **totalmente independiente** de la API de servicios de neg
 | Propiedad | Valor |
 |---|---|
 | **Puerto** | `8081` (la API de negocio `PTC` usa `8080`) |
-| **Base de datos** | Oracle (compartida con `PTC`: tablas `USUARIOS` y `ROLES_SISTEMA`) |
-| **Encriptación** | BCrypt (`BCryptPasswordEncoder`) |
+| **Base de datos** | Oracle (compartida con `PTC`: tabla `USUARIOS`) |
+| **Encriptación** | Argon2id (`Argon2PasswordEncoder`) |
 | **Token** | JWT HS256 (JJWT 0.11.5) |
 | **Java** | 17 |
 | **Spring Boot** | 4.1.0 |
@@ -19,8 +19,8 @@ PsykeP.AuthAPI
 ├── config/                      → SecurityConfig, ApplicationConfig, CorsConfig
 ├── controllers/                 → AuthController (login, register, me)
 ├── services/                    → AuthService (@Transactional(readOnly=true) en clase)
-├── repositories/                → UsuarioRepository, RolSistemaRepository
-├── entities/                    → Usuario, RolSistema (tablas USUARIOS, ROLES_SISTEMA)
+├── repositories/                → UsuarioRepository
+├── entities/                    → Usuario (tabla USUARIOS)
 ├── dtos/                        → LoginRequestDTO, RegisterRequestDTO, AuthResponseDTO, UsuarioDTO
 ├── exceptions/                  → Excepciones personalizadas + GlobalExceptionHandler
 ├── models/                      → ErrorResponse (formato uniforme de errores)
@@ -31,8 +31,8 @@ PsykeP.AuthAPI
 
 1. **Java 17** instalado (`java -version`).
 2. **Oracle** en ejecución (`localhost:1521/XEPDB1`) con el esquema cargado:
-   - Ejecuta `BD\PSYKE.sql` del proyecto `PTC` (crea `ROLES_SISTEMA`, `USUARIOS` y demás tablas).
-   - Asegúrate de que exista al menos un rol (ej. `ESTUDIANTE`, `PSICOLOGO`).
+   - Ejecuta `BD\PSYKE_BD_FULL.sql` del proyecto `PTC` (crea `USUARIOS` y demás tablas).
+   - El perfil del usuario se define con `USU_TIPO_USUARIO` (`ESTUDIANTE` o `PSICOLOGO`).
 3. Las credenciales de BD se leen del archivo local `.env` (ya configurado con la BD de `DIEGO_PSYKE`).
 
 ## Cómo ejecutarla
@@ -55,7 +55,7 @@ La API quedará disponible en: **http://localhost:8081**
 {
   "correo": "juan@mail.com",
   "contrasena": "ClaveSegura123",
-  "idRol": 1
+  "tipoUsuario": "ESTUDIANTE"
 }
 ```
 
@@ -68,7 +68,7 @@ La API quedará disponible en: **http://localhost:8081**
 }
 ```
 
-Respuesta: `{ "token": "eyJ...", "tipoToken": "Bearer", "idUsuario": 1, "correo": "...", "rol": "ESTUDIANTE", "expiraEn": 86400000 }`
+Respuesta: `{ "token": "eyJ...", "tipoToken": "Bearer", "idUsuario": 1, "correo": "...", "tipoUsuario": "ESTUDIANTE", "expiraEn": 86400000 }`
 
 ### GET /api/auth/me — Perfil del usuario autenticado (200 OK, protegido con JWT)
 
@@ -85,13 +85,14 @@ Authorization: Bearer <token>
 | `400 Bad Request` | Errores de validación de campos (`@Valid`) |
 | `401 Unauthorized` | Credenciales inválidas / token inválido o expirado |
 | `403 Forbidden` | Cuenta inactiva o bloqueada |
-| `404 Not Found` | Rol o usuario no encontrado |
+| `404 Not Found` | Usuario no encontrado en `/me` |
 | `409 Conflict` | Correo ya registrado |
 
 ## Cumplimiento de la Rúbrica
 
 - **Proyecto independiente y puerto separado:** nuevo proyecto `AuthAPI` corriendo en `8081` vs `8080` de `PTC`.
-- **Seguridad y encriptación:** login por correo + contraseña, hash BCrypt y token JWT.
+- **Seguridad y encriptación:** login por correo + contraseña, hash Argon2id y token JWT.
 - **Capa de excepciones en Service:** los servicios lanzan excepciones personalizadas (`CredencialesInvalidasException`, `CorreoYaRegistradoException`, etc.) con `orElseThrow` — **nunca retornan `null`** — y `GlobalExceptionHandler` las traduce a códigos HTTP.
-- **Manejo de transacciones:** `@Transactional(readOnly = true)` a nivel de clase en `AuthService`; `registrar()` se sobrescribe con `@Transactional`.
+- **Manejo de transacciones:** `@Transactional(readOnly = true)` a nivel de clase en `AuthService`; `registrar()` y `login()` se sobrescriben con `@Transactional`.
+- **Relaciones JPA:** carga perezosa `FetchType.LAZY` en todas las relaciones; la API solo expone la entidad `USUARIOS` alineada con la base de datos Oracle.
 - **Estándares RESTful:** verbos HTTP correctos (`POST` para login/registro, `GET` para perfil) con códigos de estado apropiados (`201`, `400`, `401`, `403`, `404`, `409`).
