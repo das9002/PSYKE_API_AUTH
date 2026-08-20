@@ -1,10 +1,13 @@
 package PsykeP.AuthAPI.security;
 
+import PsykeP.AuthAPI.auth.entities.Usuario;
+import PsykeP.AuthAPI.auth.repositories.UsuarioRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -16,7 +19,10 @@ import java.util.Map;
 import java.util.function.Function;
 
 @Service
+@RequiredArgsConstructor
 public class JwtService {
+
+    private final UsuarioRepository usuarioRepository;
 
     @Value("${security.jwt.secret-key}")
     private String secretKey;
@@ -63,7 +69,18 @@ public class JwtService {
 
     public boolean esTokenValido(String token) {
         final String username = extraerUsername(token);
-        return username != null && !esTokenExpirado(token);
+        if (username == null || esTokenExpirado(token)) {
+            return false;
+        }
+        Usuario usuario = usuarioRepository.findByCorreo(username).orElse(null);
+        if (usuario == null) {
+            return false;
+        }
+        if ("BLOQUEADO".equals(usuario.getEstadoCuenta())
+                || !"ACTIVO".equals(usuario.getEstadoCuenta())) {
+            return false;
+        }
+        return true;
     }
 
     private boolean esTokenExpirado(String token) {
