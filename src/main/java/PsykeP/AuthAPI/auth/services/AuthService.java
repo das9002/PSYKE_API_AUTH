@@ -12,15 +12,22 @@ import PsykeP.AuthAPI.exceptions.UsuarioBloqueadoException;
 import PsykeP.AuthAPI.exceptions.UsuarioInactivoException;
 import PsykeP.AuthAPI.exceptions.UsuarioNoEncontradoException;
 import PsykeP.AuthAPI.security.JwtService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+
+import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +40,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
-    public AuthResponseDTO login(LoginRequestDTO request) {
+    public AuthResponseDTO login(LoginRequestDTO request, HttpServletResponse response) {
         Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo())
                 .orElseThrow(() -> new CredencialesInvalidasException("Credenciales inválidas"));
 
@@ -47,12 +54,22 @@ public class AuthService {
             throw new CredencialesInvalidasException("Credenciales inválidas");
         }
 
+        validarOrigen(request.getOrigen(), usuario.getTipoUsuario());
+
         usuario.setUltimaConexion(LocalDateTime.now());
 
         final String token = jwtService.generarToken(usuario);
 
+        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
+
         return AuthResponseDTO.builder()
-                .token(token)
                 .tipoToken("Bearer")
                 .idUsuario(usuario.getIdUsuario())
                 .correo(usuario.getCorreo())
@@ -62,7 +79,7 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponseDTO registrar(RegisterRequestDTO request) {
+    public AuthResponseDTO registrar(RegisterRequestDTO request, HttpServletResponse response) {
         if (usuarioRepository.existsByCorreo(request.getCorreo())) {
             throw new CorreoYaRegistradoException("Ya existe un usuario registrado con el correo: " + request.getCorreo());
         }
@@ -77,8 +94,16 @@ public class AuthService {
         Usuario guardado = usuarioRepository.save(usuario);
         final String token = jwtService.generarToken(guardado);
 
+        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
+
         return AuthResponseDTO.builder()
-                .token(token)
                 .tipoToken("Bearer")
                 .idUsuario(guardado.getIdUsuario())
                 .correo(guardado.getCorreo())
@@ -89,7 +114,7 @@ public class AuthService {
 
     public UsuarioDTO obtenerPerfil(String correo) {
         Usuario usuario = usuarioRepository.findByCorreo(correo)
-                .orElseThrow(() -> new UsuarioNoEncontradoException("Usuario no encontrado con el correo: " + correo));
+                .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Usuario no autenticado"));
 
         return UsuarioDTO.builder()
                 .idUsuario(usuario.getIdUsuario())
@@ -99,12 +124,34 @@ public class AuthService {
                 .build();
     }
 
+    public void logout(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
     private void validarEstadoCuenta(Usuario usuario) {
         if ("BLOQUEADO".equals(usuario.getEstadoCuenta())) {
             throw new UsuarioBloqueadoException("La cuenta se encuentra bloqueada. Contacte al administrador.");
         }
         if (!"ACTIVO".equals(usuario.getEstadoCuenta())) {
             throw new UsuarioInactivoException("La cuenta se encuentra inactiva. Contacte al administrador.");
+        }
+    }
+
+    private void validarOrigen(String origen, String tipoUsuario) {
+        if (origen == null) return;
+
+        if ("WEB".equalsIgnoreCase(origen) && "ESTUDIANTE".equals(tipoUsuario)) {
+            throw new ResponseStatusException(FORBIDDEN, "Los estudiantes no pueden acceder desde la web");
+        }
+        if ("MOBILE".equalsIgnoreCase(origen) && ("ADMIN".equals(tipoUsuario) || "PSICOLOGO".equals(tipoUsuario))) {
+            throw new ResponseStatusException(FORBIDDEN, "Administradores y psicólogos no pueden acceder desde la app móvil");
         }
     }
 }

@@ -2,6 +2,7 @@ package PsykeP.AuthAPI.auth.dtos;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,4 +20,7 @@ public class LoginRequestDTO {
 
     @NotBlank(message = "La contraseña es obligatoria")
     private String contrasena;
+
+    @Pattern(regexp = "WEB|MOBILE", message = "El origen debe ser WEB o MOBILE")
+    private String origen;
 }
