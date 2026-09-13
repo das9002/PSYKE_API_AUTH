@@ -62,8 +62,8 @@ public class AuthService {
 
         ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
                 .httpOnly(true)
-                .secure(true)
-                .sameSite("Strict")
+                .secure(esEntornoSeguro())
+                .sameSite("Lax")
                 .path("/")
                 .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
                 .build();
@@ -96,8 +96,8 @@ public class AuthService {
 
         ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
                 .httpOnly(true)
-                .secure(true)
-                .sameSite("Strict")
+                .secure(esEntornoSeguro())
+                .sameSite("Lax")
                 .path("/")
                 .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
                 .build();
@@ -127,12 +127,17 @@ public class AuthService {
     public void logout(HttpServletResponse response) {
         ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", "")
                 .httpOnly(true)
-                .secure(true)
-                .sameSite("Strict")
+                .secure(esEntornoSeguro())
+                .sameSite("Lax")
                 .path("/")
                 .maxAge(0)
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private boolean esEntornoSeguro() {
+        String env = System.getenv("SPRING_PROFILES_ACTIVE");
+        return env != null && !env.contains("dev") && !env.contains("local");
     }
 
     private void validarEstadoCuenta(Usuario usuario) {

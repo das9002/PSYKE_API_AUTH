@@ -14,6 +14,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -27,8 +28,18 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     private static final String JWT_COOKIE_NAME = "psyke_auth_jwt";
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+        String path = request.getRequestURI();
+        return "/api/auth/login".equals(path) || "/api/auth/register".equals(path);
+    }
 
     @Override
     protected void doFilterInternal(
@@ -40,12 +51,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String jwt = extractJwtFromCookie(request);
 
         if (jwt == null) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        String path = request.getRequestURI();
-        if ("/api/auth/login".equals(path) || "/api/auth/register".equals(path)) {
             filterChain.doFilter(request, response);
             return;
         }
