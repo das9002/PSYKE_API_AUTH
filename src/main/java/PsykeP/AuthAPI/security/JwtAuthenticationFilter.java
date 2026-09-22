@@ -48,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String jwt = extractJwtFromCookie(request);
+        String jwt = extractJwt(request);
 
         if (jwt == null) {
             filterChain.doFilter(request, response);
@@ -78,7 +78,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private String extractJwtFromCookie(HttpServletRequest request) {
+    private String extractJwt(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
@@ -90,6 +94,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     private Collection<? extends GrantedAuthority> extraerAuthorities(String jwt) {
         return jwtService.extraerClaim(jwt, claims -> {
             List<?> roles = claims.get("roles", List.class);
@@ -97,6 +102,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return List.of();
             }
             return roles.stream()
+                    .filter(Map.class::isInstance)
                     .map(role -> (Map<String, Object>) role)
                     .map(role -> new SimpleGrantedAuthority(String.valueOf(role.get("authority"))))
                     .collect(Collectors.toList());
