@@ -43,6 +43,12 @@ public class GlobalExceptionHandler {
         return construirRespuesta(HttpStatus.CONFLICT, ex.getMessage());
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.error("Violación de restricción de integridad en la base de datos", ex);
+        return construirRespuesta(HttpStatus.BAD_REQUEST, "El valor enviado viola una restricción de integridad de la base de datos");
+    }
+
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(org.springframework.web.server.ResponseStatusException ex) {
         return construirRespuesta(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason());
