@@ -24,7 +24,7 @@ public class RegisterRequestDTO {
     private String contrasena;
 
     @NotBlank(message = "El tipo de usuario es obligatorio")
-    @Pattern(regexp = "ESTUDIANTE|PSICOLOGO",
-            message = "El tipo de usuario debe ser ESTUDIANTE o PSICOLOGO")
+    @Pattern(regexp = "ESTUDIANTE|PSICOLOGO|ADMIN",
+            message = "El tipo de usuario debe ser ESTUDIANTE, PSICOLOGO o ADMIN")
     private String tipoUsuario;
 }
