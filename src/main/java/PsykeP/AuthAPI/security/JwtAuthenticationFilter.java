@@ -14,7 +14,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -28,17 +27,12 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final AntPathMatcher pathMatcher = new AntPathMatcher();
-
     private static final String JWT_COOKIE_NAME = "psyke_auth_jwt";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            return true;
-        }
-        String path = request.getRequestURI();
-        return "/api/auth/login".equals(path) || "/api/auth/register".equals(path);
+        // Omite el filtro ÚNICAMENTE en peticiones preflight HTTP OPTIONS (necesario para CORS)
+        return "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
     @Override
@@ -50,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String jwt = extractJwt(request);
 
-        if (jwt == null) {
+        if (jwt == null || jwt.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -61,6 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (userEmail != null
                     && SecurityContextHolder.getContext().getAuthentication() == null
                     && jwtService.esTokenValido(jwt)) {
+
                 Collection<? extends GrantedAuthority> authorities = extraerAuthorities(jwt);
 
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
@@ -73,21 +68,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         } catch (JwtException | IllegalArgumentException ex) {
+            // Si el token es inválido, expiro o está malformado, limpiamos el contexto
             SecurityContextHolder.clearContext();
         }
+
         filterChain.doFilter(request, response);
     }
 
     private String extractJwt(HttpServletRequest request) {
+        // 1. Intentar obtener el token desde el encabezado Authorization
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
+            String token = authHeader.substring(7).trim();
+            if (!token.isBlank()) {
+                return token;
+            }
         }
+
+        // 2. Si no existe en el encabezado, intentar obtenerlo desde las Cookies
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
                 if (JWT_COOKIE_NAME.equals(cookie.getName())) {
-                    return cookie.getValue();
+                    String value = cookie.getValue();
+                    if (value != null && !value.isBlank()) {
+                        return value;
+                    }
                 }
             }
         }
@@ -97,15 +103,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @SuppressWarnings("unchecked")
     private Collection<? extends GrantedAuthority> extraerAuthorities(String jwt) {
         return jwtService.extraerClaim(jwt, claims -> {
-            List<?> roles = claims.get("roles", List.class);
-            if (roles == null) {
-                return List.of();
+            Object rolesObj = claims.get("roles");
+            if (rolesObj instanceof List<?> roles) {
+                return roles.stream()
+                        .map(role -> {
+                            if (role instanceof Map<?, ?> map) {
+                                return new SimpleGrantedAuthority(String.valueOf(map.get("authority")));
+                            } else if (role instanceof String strRole) {
+                                return new SimpleGrantedAuthority(strRole);
+                            }
+                            return null;
+                        })
+                        .filter(auth -> auth != null && !auth.getAuthority().isBlank())
+                        .collect(Collectors.toList());
             }
-            return roles.stream()
-                    .filter(Map.class::isInstance)
-                    .map(role -> (Map<String, Object>) role)
-                    .map(role -> new SimpleGrantedAuthority(String.valueOf(role.get("authority"))))
-                    .collect(Collectors.toList());
+            return List.of();
         });
     }
 }
