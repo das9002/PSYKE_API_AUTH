@@ -63,13 +63,15 @@ public class AuthService {
         ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
                 .httpOnly(true)
                 .secure(esEntornoSeguro())
-                .sameSite("Lax")
+                .sameSite(esEntornoSeguro() ? "None" : "Lax")
                 .path("/")
                 .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
 
         return AuthResponseDTO.builder()
+                .token(token)
+                .accessToken(token)
                 .tipoToken("Bearer")
                 .idUsuario(usuario.getIdUsuario())
                 .correo(usuario.getCorreo())
@@ -104,6 +106,8 @@ public class AuthService {
         response.addHeader("Set-Cookie", cookie.toString());
 
         return AuthResponseDTO.builder()
+                .token(token)
+                .accessToken(token)
                 .tipoToken("Bearer")
                 .idUsuario(guardado.getIdUsuario())
                 .correo(guardado.getCorreo())
@@ -128,7 +132,7 @@ public class AuthService {
         ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", "")
                 .httpOnly(true)
                 .secure(esEntornoSeguro())
-                .sameSite("Lax")
+                .sameSite(esEntornoSeguro() ? "None" : "Lax")
                 .path("/")
                 .maxAge(0)
                 .build();
