@@ -26,15 +26,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // 1. Integración de la configuración CORS usando el Bean inyectado de CorsConfig
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
-
-            // 2. Desactivación de CSRF, HTTP Basic y Form Login tradicional (API REST Stateless)
             .csrf(csrf -> csrf.disable())
             .httpBasic(httpBasic -> httpBasic.disable())
-            .formLogin(form -> form.disable())
-
-            // 3. Manejo de excepciones personalizadas para solicitudes no autenticadas (Respuesta 401 en JSON)
+            .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
@@ -42,34 +36,16 @@ public class SecurityConfig {
                     response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"No autenticado\"}");
                 })
             )
-
-            // 4. Configuración de autorización de rutas (Evaluación en orden descendente)
             .authorizeHttpRequests(auth -> auth
-                // Permitir siempre preflight HTTP OPTIONS para CORS
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // Permitir rutas de autenticación públicas (soporta con y sin el prefijo /api/auth)
-                .requestMatchers(
-                    "/login", "/register", "/logout",
-                    "/api/auth/login", "/api/auth/register", "/api/auth/logout"
-                ).permitAll()
-
-                // Proteger explícitamente las rutas de consulta de perfil de usuario
-                .requestMatchers("/api/auth/me", "/me").authenticated()
-
-                // Permitir cualquier otra subruta de autenticación pública no especificada arriba
+                .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers("/api/auth/me").authenticated()
                 .requestMatchers("/api/auth/**").permitAll()
-
-                // Cualquier otra solicitud en la aplicación requiere autenticación
                 .anyRequest().authenticated()
             )
-
-            // 5. Gestión de sesión sin estado (Stateless por JWT)
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
-
-            // 6. Proveedor de autenticación y filtro JWT personalizado
             .authenticationProvider(authenticationProvider)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
