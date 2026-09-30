@@ -20,7 +20,9 @@ public class CorsConfig {
         config.setAllowedOriginPatterns(List.of(
                 "https://psykeweb.vercel.app",
                 "https://*.vercel.app",
+                "https://*.herokuapp.com",
                 "https://api-service-4d465a47b94c.herokuapp.com",
+                "https://api-auth-1b19165bcf87.herokuapp.com",
                 "http://localhost",
                 "http://localhost:*",
                 "http://127.0.0.1",
