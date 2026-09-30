@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 @Configuration
 public class CorsConfig {
 
-    @Value("${cors.allowed-origins:https://psykeweb.vercel.app,https://*.vercel.app,http://localhost:*,http://127.0.0.1:*}")
+    @Value("${cors.allowed-origins:https://api-service-4d465a47b94c.herokuapp.com,https://psykeweb.vercel.app,https://*.vercel.app,http://localhost:*,http://127.0.0.1:*}")
     private String allowedOrigins;
 
     @Bean
