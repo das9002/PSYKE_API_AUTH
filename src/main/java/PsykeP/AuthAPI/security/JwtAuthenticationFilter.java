@@ -1,5 +1,6 @@
 package PsykeP.AuthAPI.security;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -26,19 +27,16 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+
     private static final String JWT_COOKIE_NAME = "psyke_auth_jwt";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-
-        // 1. Omite el filtro en peticiones preflight HTTP OPTIONS (necesario para responder CORS rápidamente)
-        // 2. Omite el filtro en endpoints públicos de autenticación y registro
-        return "OPTIONS".equalsIgnoreCase(request.getMethod())
-                || path.startsWith("/api/auth/login")
-                || path.startsWith("/api/auth/register")
-                || path.startsWith("/login")
-                || path.startsWith("/register");
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+        String path = request.getRequestURI();
+        return "/api/auth/login".equals(path) || "/api/auth/register".equals(path);
     }
 
     @Override
@@ -50,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String jwt = extractJwt(request);
 
-        if (jwt == null || jwt.isBlank()) {
+        if (jwt == null) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -61,46 +59,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (userEmail != null
                     && SecurityContextHolder.getContext().getAuthentication() == null
                     && jwtService.esTokenValido(jwt)) {
-
                 Collection<? extends GrantedAuthority> authorities = extraerAuthorities(jwt);
 
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userEmail,
                         null,
-                        authorities != null ? authorities : List.of()
+                        authorities
                 );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
-        } catch (Exception ex) {
-            // Captura cualquier excepción no controlada (parseo, token malformado, NullPointer, etc.)
-            // para evitar que un error HTTP 500 no controlado rompa las cabeceras CORS en la respuesta.
+        } catch (JwtException | IllegalArgumentException ex) {
             SecurityContextHolder.clearContext();
         }
-
         filterChain.doFilter(request, response);
     }
 
     private String extractJwt(HttpServletRequest request) {
-        // 1. Intentar obtener el token desde el encabezado Authorization
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7).trim();
-            if (!token.isBlank()) {
-                return token;
-            }
+            return authHeader.substring(7);
         }
-
-        // 2. Si no existe en el encabezado, intentar obtenerlo desde las Cookies
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
                 if (JWT_COOKIE_NAME.equals(cookie.getName())) {
-                    String value = cookie.getValue();
-                    if (value != null && !value.isBlank()) {
-                        return value;
-                    }
+                    return cookie.getValue();
                 }
             }
         }
@@ -109,26 +94,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @SuppressWarnings("unchecked")
     private Collection<? extends GrantedAuthority> extraerAuthorities(String jwt) {
-        try {
-            return jwtService.extraerClaim(jwt, claims -> {
-                Object rolesObj = claims.get("roles");
-                if (rolesObj instanceof List<?> roles) {
-                    return roles.stream()
-                            .map(role -> {
-                                if (role instanceof Map<?, ?> map) {
-                                    return new SimpleGrantedAuthority(String.valueOf(map.get("authority")));
-                                } else if (role instanceof String strRole) {
-                                    return new SimpleGrantedAuthority(strRole);
-                                }
-                                return null;
-                            })
-                            .filter(auth -> auth != null && !auth.getAuthority().isBlank())
-                            .collect(Collectors.toList());
-                }
+        return jwtService.extraerClaim(jwt, claims -> {
+            List<?> roles = claims.get("roles", List.class);
+            if (roles == null) {
                 return List.of();
-            });
-        } catch (Exception e) {
-            return List.of();
-        }
+            }
+            return roles.stream()
+                    .filter(Map.class::isInstance)
+                    .map(role -> (Map<String, Object>) role)
+                    .map(role -> new SimpleGrantedAuthority(String.valueOf(role.get("authority"))))
+                    .collect(Collectors.toList());
+        });
     }
 }
