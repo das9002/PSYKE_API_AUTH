@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-
     private static final String JWT_COOKIE_NAME = "psyke_auth_jwt";
 
     @Override
@@ -77,10 +76,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractJwt(HttpServletRequest request) {
+        // 1. Extraer del Header Authorization
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);
         }
+        // 2. Fallback: Extraer de Cookie HttpOnly
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
@@ -96,9 +97,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private Collection<? extends GrantedAuthority> extraerAuthorities(String jwt) {
         return jwtService.extraerClaim(jwt, claims -> {
             List<?> roles = claims.get("roles", List.class);
-            if (roles == null) {
-                return List.of();
-            }
+            if (roles == null) return List.of();
             return roles.stream()
                     .filter(Map.class::isInstance)
                     .map(role -> (Map<String, Object>) role)
