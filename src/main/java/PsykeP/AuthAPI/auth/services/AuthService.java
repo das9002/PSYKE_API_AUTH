@@ -10,7 +10,6 @@ import PsykeP.AuthAPI.exceptions.CorreoYaRegistradoException;
 import PsykeP.AuthAPI.exceptions.CredencialesInvalidasException;
 import PsykeP.AuthAPI.exceptions.UsuarioBloqueadoException;
 import PsykeP.AuthAPI.exceptions.UsuarioInactivoException;
-import PsykeP.AuthAPI.exceptions.UsuarioNoEncontradoException;
 import PsykeP.AuthAPI.security.JwtService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -96,7 +95,6 @@ public class AuthService {
         Usuario guardado = usuarioRepository.save(usuario);
         final String token = jwtService.generarToken(guardado);
 
-        // CORREGIDO: Se usa dinámica de esEntornoSeguro() para permitir SameSite=None en registro
         ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
                 .httpOnly(true)
                 .secure(esEntornoSeguro())
@@ -141,12 +139,6 @@ public class AuthService {
     }
 
     private boolean esEntornoSeguro() {
-        // CORREGIDO: Detecta si está corriendo en Heroku mediante la variable nativa DYNO
-        boolean esHeroku = System.getenv("DYNO") != null;
-        if (esHeroku) {
-            return true;
-        }
-
         String env = System.getenv("SPRING_PROFILES_ACTIVE");
         return env != null && !env.contains("dev") && !env.contains("local");
     }
