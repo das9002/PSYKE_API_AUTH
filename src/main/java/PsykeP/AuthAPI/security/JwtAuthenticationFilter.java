@@ -1,6 +1,5 @@
 package PsykeP.AuthAPI.security;
 
-import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -31,8 +30,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // Omite el filtro ÚNICAMENTE en peticiones preflight HTTP OPTIONS (necesario para CORS)
-        return "OPTIONS".equalsIgnoreCase(request.getMethod());
+        String path = request.getServletPath();
+
+        // 1. Omite el filtro en peticiones preflight HTTP OPTIONS (necesario para responder CORS rápidamente)
+        // 2. Omite el filtro en endpoints públicos de autenticación y registro
+        return "OPTIONS".equalsIgnoreCase(request.getMethod())
+                || path.startsWith("/api/auth/login")
+                || path.startsWith("/api/auth/register")
+                || path.startsWith("/login")
+                || path.startsWith("/register");
     }
 
     @Override
@@ -61,14 +67,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userEmail,
                         null,
-                        authorities
+                        authorities != null ? authorities : List.of()
                 );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
-        } catch (JwtException | IllegalArgumentException ex) {
-            // Si el token es inválido, expiro o está malformado, limpiamos el contexto
+        } catch (Exception ex) {
+            // Captura cualquier excepción no controlada (parseo, token malformado, NullPointer, etc.)
+            // para evitar que un error HTTP 500 no controlado rompa las cabeceras CORS en la respuesta.
             SecurityContextHolder.clearContext();
         }
 
@@ -102,22 +109,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @SuppressWarnings("unchecked")
     private Collection<? extends GrantedAuthority> extraerAuthorities(String jwt) {
-        return jwtService.extraerClaim(jwt, claims -> {
-            Object rolesObj = claims.get("roles");
-            if (rolesObj instanceof List<?> roles) {
-                return roles.stream()
-                        .map(role -> {
-                            if (role instanceof Map<?, ?> map) {
-                                return new SimpleGrantedAuthority(String.valueOf(map.get("authority")));
-                            } else if (role instanceof String strRole) {
-                                return new SimpleGrantedAuthority(strRole);
-                            }
-                            return null;
-                        })
-                        .filter(auth -> auth != null && !auth.getAuthority().isBlank())
-                        .collect(Collectors.toList());
-            }
+        try {
+            return jwtService.extraerClaim(jwt, claims -> {
+                Object rolesObj = claims.get("roles");
+                if (rolesObj instanceof List<?> roles) {
+                    return roles.stream()
+                            .map(role -> {
+                                if (role instanceof Map<?, ?> map) {
+                                    return new SimpleGrantedAuthority(String.valueOf(map.get("authority")));
+                                } else if (role instanceof String strRole) {
+                                    return new SimpleGrantedAuthority(strRole);
+                                }
+                                return null;
+                            })
+                            .filter(auth -> auth != null && !auth.getAuthority().isBlank())
+                            .collect(Collectors.toList());
+                }
+                return List.of();
+            });
+        } catch (Exception e) {
             return List.of();
-        });
+        }
     }
 }
