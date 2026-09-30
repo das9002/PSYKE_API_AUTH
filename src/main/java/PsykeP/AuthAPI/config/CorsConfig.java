@@ -12,22 +12,38 @@ import org.springframework.web.filter.CorsFilter;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Configuration
 public class CorsConfig {
 
-    @Value("${cors.allowed-origins:https://api-service-4d465a47b94c.herokuapp.com,https://psykeweb.vercel.app,https://*.vercel.app,http://localhost:*,http://127.0.0.1:*}")
+    // Se utiliza sintaxis SpEL segura para evitar que las comas del valor por defecto rompan la inyección
+    @Value("${cors.allowed-origins:#{null}}")
     private String allowedOrigins;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        List<String> origins = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(origin -> !origin.isEmpty())
-                .collect(Collectors.toList());
+        List<String> origins;
+        
+        // Si existe la variable en Heroku/application.properties, se parsea.
+        // Si no existe, se utiliza la lista de fallback completa.
+        if (allowedOrigins != null && !allowedOrigins.trim().isEmpty()) {
+            origins = Arrays.stream(allowedOrigins.split(","))
+                    .map(String::trim)
+                    .filter(origin -> !origin.isEmpty())
+                    .toList();
+        } else {
+            origins = List.of(
+                    "https://psykeweb.vercel.app",
+                    "https://*.vercel.app",
+                    "https://api-service-4d465a47b94c.herokuapp.com",
+                    "http://localhost",
+                    "http://localhost:*",
+                    "http://127.0.0.1",
+                    "http://127.0.0.1:*"
+            );
+        }
 
         config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
@@ -44,7 +60,7 @@ public class CorsConfig {
     @Bean
     public FilterRegistrationBean<CorsFilter> corsFilterRegistrationBean(CorsConfigurationSource corsConfigurationSource) {
         FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(corsConfigurationSource));
-        // Forzar prioridad máxima para procesar peticiones OPTIONS antes de Spring Security
+        // Prioridad máxima absoluta para capturar las peticiones OPTIONS antes de Spring Security
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return bean;
     }
