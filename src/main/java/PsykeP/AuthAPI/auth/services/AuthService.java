@@ -163,12 +163,14 @@ public class AuthService {
         }
     }
     
-    @Transactional
+   @Transactional
     public void solicitarRecuperacionContrasena(String correo) {
-    Usuario usuario = usuarioRepository.findByCorreo(correo)
-            .orElseThrow(() -> new CredencialesInvalidasException("No existe una cuenta registrada con este correo."));
+        Usuario usuario = usuarioRepository.findByCorreo(correo)
+                .orElseThrow(() -> new CredencialesInvalidasException("No existe una cuenta registrada con este correo."));
+        validarEstadoCuenta(usuario);
+    }
 
-    validarEstadoCuenta(usuario);
+    private void validarEstadoCuenta(Usuario usuario) {
     }
 
     async recuperarContrasena(correo) {
