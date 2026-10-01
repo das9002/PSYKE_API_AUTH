@@ -48,4 +48,15 @@ public class AuthController {
         authService.logout(response);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/recuperar-contrasena")
+    public ResponseEntity<Map<String, String>> solicitarRecuperacionContrasena(
+            @Valid @RequestBody RecuperarContrasenaDTO request) {
+        
+        authService.solicitarRecuperacionContrasena(request.getCorreo());
+        
+        return ResponseEntity.ok(Map.of(
+            "message", "Se han enviado las instrucciones de recuperación a su correo electrónico."
+        ));
+    }
 }
