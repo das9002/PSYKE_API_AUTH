@@ -162,4 +162,12 @@ public class AuthService {
             throw new ResponseStatusException(FORBIDDEN, "Administradores y psicólogos no pueden acceder desde la app móvil");
         }
     }
+    
+    @Transactional
+    public void solicitarRecuperacionContrasena(String correo) {
+    Usuario usuario = usuarioRepository.findByCorreo(correo)
+            .orElseThrow(() -> new CredencialesInvalidasException("No existe una cuenta registrada con este correo."));
+
+    validarEstadoCuenta(usuario);
+    }
 }
