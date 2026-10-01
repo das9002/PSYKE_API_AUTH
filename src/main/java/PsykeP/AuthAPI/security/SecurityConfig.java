@@ -44,7 +44,8 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/auth/login", 
                     "/api/auth/register", 
-                    "/api/auth/recuperar-password", 
+                    "/api/auth/recuperar-password",
+                    "/auth/recuperar-contrasena",
                     "/api/auth/reset-password"
                 ).permitAll()
                 
