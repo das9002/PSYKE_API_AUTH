@@ -4,6 +4,7 @@ import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
 import PsykeP.AuthAPI.auth.dtos.RecuperarContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
+import PsykeP.AuthAPI.auth.dtos.RestablecerContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
 import PsykeP.AuthAPI.auth.services.AuthService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -59,7 +60,18 @@ public class AuthController {
         authService.solicitarRecuperacionContrasena(request.getCorreo());
         
         return ResponseEntity.ok(Map.of(
-            "message", "Se han enviado las instrucciones de recuperación a su correo electrónico."
+            "message", "Se ha enviado el código de verificación a su correo electrónico."
+        ));
+    }
+
+    @PostMapping("/restablecer-contrasena")
+    public ResponseEntity<Map<String, String>> restablecerContrasena(
+            @Valid @RequestBody RestablecerContrasenaDTO request) {
+        
+        authService.restablecerContrasena(request);
+        
+        return ResponseEntity.ok(Map.of(
+            "message", "La contraseña ha sido restablecida exitosamente."
         ));
     }
 }
