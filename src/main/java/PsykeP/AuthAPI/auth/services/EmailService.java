@@ -19,12 +19,6 @@ public class EmailService {
     @Value("${spring.mail.username:no-reply@psykep.com}")
     private String remitente;
 
-    /**
-     * Envía un correo electrónico con el código de verificación para recuperar la contraseña.
-     *
-     * @param destinatario Correo electrónico del usuario
-     * @param codigo       Código de verificación de 6 dígitos
-     */
     public void enviarCodigoRecuperacion(String destinatario, String codigo) {
         try {
             SimpleMailMessage mensaje = new SimpleMailMessage();
