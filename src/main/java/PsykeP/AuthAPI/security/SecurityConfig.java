@@ -40,12 +40,13 @@ public class SecurityConfig {
                 // 1. Permitir peticiones pre-flight CORS (OPTIONS)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 
-                // 2. Endpoints PÚBLICOS explícitos (agrega aquí otros si usas recuperar contraseña, etc.)
+                // 2. Endpoints PÚBLICOS explícitos (Rutado completo con /api/auth/)
                 .requestMatchers(
                     "/api/auth/login", 
                     "/api/auth/register", 
+                    "/api/auth/recuperar-contrasena",
+                    "/api/auth/restablecer-contrasena",
                     "/api/auth/recuperar-password",
-                    "/auth/recuperar-contrasena",
                     "/api/auth/reset-password"
                 ).permitAll()
                 
