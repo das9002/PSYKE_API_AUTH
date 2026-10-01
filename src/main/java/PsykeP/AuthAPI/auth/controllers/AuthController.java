@@ -2,6 +2,7 @@ package PsykeP.AuthAPI.auth.controllers;
 
 import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
+import PsykeP.AuthAPI.auth.dtos.RecuperarContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
 import PsykeP.AuthAPI.auth.services.AuthService;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -37,7 +40,7 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UsuarioDTO> me(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(401).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         UsuarioDTO perfil = authService.obtenerPerfil(authentication.getName());
         return ResponseEntity.ok(perfil);
