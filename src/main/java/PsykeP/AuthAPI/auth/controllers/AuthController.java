@@ -2,10 +2,12 @@ package PsykeP.AuthAPI.auth.controllers;
 
 import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
+import PsykeP.AuthAPI.auth.dtos.RecuperacionResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.RecuperarContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
 import PsykeP.AuthAPI.auth.dtos.RestablecerContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
+import PsykeP.AuthAPI.auth.dtos.VerificarCodigoDTO;
 import PsykeP.AuthAPI.auth.services.AuthService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -18,8 +20,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -54,24 +54,18 @@ public class AuthController {
     }
 
     @PostMapping("/recuperar-contrasena")
-    public ResponseEntity<Map<String, String>> solicitarRecuperacionContrasena(
+    public ResponseEntity<RecuperacionResponseDTO> solicitarRecuperacionContrasena(
             @Valid @RequestBody RecuperarContrasenaDTO request) {
-        
-        authService.solicitarRecuperacionContrasena(request.getCorreo());
-        
-        return ResponseEntity.ok(Map.of(
-            "message", "Se ha enviado el código de verificación a su correo electrónico."
-        ));
+        return ResponseEntity.ok(authService.solicitarRecuperacionContrasena(request));
+    }
+
+    @PostMapping("/verificar-codigo")
+    public ResponseEntity<RecuperacionResponseDTO> verificarCodigo(@Valid @RequestBody VerificarCodigoDTO request) {
+        return ResponseEntity.ok(authService.verificarCodigoRecuperacion(request));
     }
 
     @PostMapping("/restablecer-contrasena")
-    public ResponseEntity<Map<String, String>> restablecerContrasena(
-            @Valid @RequestBody RestablecerContrasenaDTO request) {
-        
-        authService.restablecerContrasena(request);
-        
-        return ResponseEntity.ok(Map.of(
-            "message", "La contraseña ha sido restablecida exitosamente."
-        ));
+    public ResponseEntity<RecuperacionResponseDTO> restablecerContrasena(@Valid @RequestBody RestablecerContrasenaDTO request) {
+        return ResponseEntity.ok(authService.restablecerContrasena(request));
     }
 }
