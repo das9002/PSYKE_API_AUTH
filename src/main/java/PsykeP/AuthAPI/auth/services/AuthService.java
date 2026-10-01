@@ -138,6 +138,13 @@ public class AuthService {
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
+    @Transactional
+    public void solicitarRecuperacionContrasena(String correo) {
+        Usuario usuario = usuarioRepository.findByCorreo(correo)
+                .orElseThrow(() -> new CredencialesInvalidasException("No existe una cuenta registrada con este correo."));
+        validarEstadoCuenta(usuario);
+    }
+
     private boolean esEntornoSeguro() {
         String env = System.getenv("SPRING_PROFILES_ACTIVE");
         return env != null && !env.contains("dev") && !env.contains("local");
@@ -161,34 +168,5 @@ public class AuthService {
         if ("MOBILE".equalsIgnoreCase(origen) && ("ADMIN".equals(tipoUsuario) || "PSICOLOGO".equals(tipoUsuario))) {
             throw new ResponseStatusException(FORBIDDEN, "Administradores y psicólogos no pueden acceder desde la app móvil");
         }
-    }
-    
-   @Transactional
-    public void solicitarRecuperacionContrasena(String correo) {
-        Usuario usuario = usuarioRepository.findByCorreo(correo)
-                .orElseThrow(() -> new CredencialesInvalidasException("No existe una cuenta registrada con este correo."));
-        validarEstadoCuenta(usuario);
-    }
-
-    private void validarEstadoCuenta(Usuario usuario) {
-    }
-
-    async recuperarContrasena(correo) {
-        const urlBase = typeof CONFIG !== 'undefined' && CONFIG.API_URL ? CONFIG.API_URL : API_URL;
-
-        const response = await fetch(`${urlBase}/auth/recuperar-contrasena`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ correo })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || 'Error al enviar la solicitud de recuperación');
-        }
-
-        return await response.json();
     }
 }
