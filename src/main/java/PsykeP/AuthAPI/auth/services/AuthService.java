@@ -3,6 +3,7 @@ package PsykeP.AuthAPI.auth.services;
 import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
+import PsykeP.AuthAPI.auth.dtos.RestablecerContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
 import PsykeP.AuthAPI.auth.entities.Usuario;
 import PsykeP.AuthAPI.auth.repositories.UsuarioRepository;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -37,6 +39,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     @Transactional
     public AuthResponseDTO login(LoginRequestDTO request, HttpServletResponse response) {
@@ -142,7 +145,44 @@ public class AuthService {
     public void solicitarRecuperacionContrasena(String correo) {
         Usuario usuario = usuarioRepository.findByCorreo(correo)
                 .orElseThrow(() -> new CredencialesInvalidasException("No existe una cuenta registrada con este correo."));
+
         validarEstadoCuenta(usuario);
+
+        // Generar código numérico aleatorio de 6 dígitos
+        String codigo = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+
+        // Guardar código y fecha de expiración (5 minutos)
+        usuario.setCodigoRecuperacion(codigo);
+        usuario.setFechaExpiracionCodigo(LocalDateTime.now().plusMinutes(5));
+        usuarioRepository.save(usuario);
+
+        // Enviar el correo con el código
+        emailService.enviarCodigoRecuperacion(correo, codigo);
+    }
+
+    @Transactional
+    public void restablecerContrasena(RestablecerContrasenaDTO request) {
+        Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo())
+                .orElseThrow(() -> new CredencialesInvalidasException("No existe un usuario registrado con este correo."));
+
+        // 1. Validar que exista y coincida el código de verificación
+        if (usuario.getCodigoRecuperacion() == null || !usuario.getCodigoRecuperacion().equals(request.getCodigo())) {
+            throw new CredencialesInvalidasException("El código de verificación es incorrecto.");
+        }
+
+        // 2. Validar que el código no haya expirado
+        if (usuario.getFechaExpiracionCodigo() == null || usuario.getFechaExpiracionCodigo().isBefore(LocalDateTime.now())) {
+            throw new CredencialesInvalidasException("El código de verificación ha expirado. Solicite uno nuevo.");
+        }
+
+        // 3. Encriptar y actualizar la nueva contraseña
+        usuario.setContrasena(passwordEncoder.encode(request.getNuevaContrasena()));
+
+        // 4. Limpiar los campos del código utilizado
+        usuario.setCodigoRecuperacion(null);
+        usuario.setFechaExpiracionCodigo(null);
+
+        usuarioRepository.save(usuario);
     }
 
     private boolean esEntornoSeguro() {
