@@ -43,10 +43,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
         
         // Omitir el filtro SOLO en endpoints públicos de autenticación
-        return "/api/auth/login".equals(path) 
+        return "/api/auth/login".equals(path)
             || "/api/auth/register".equals(path)
-            || "/api/auth/recuperar-password".equals(path)
-            || "/api/auth/reset-password".equals(path);
+            || "/api/auth/recuperar-contrasena".equals(path)
+            || "/api/auth/verificar-codigo".equals(path)
+            || "/api/auth/restablecer-contrasena".equals(path);
     }
 
     @Override

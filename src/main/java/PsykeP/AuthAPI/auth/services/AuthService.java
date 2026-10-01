@@ -2,18 +2,24 @@ package PsykeP.AuthAPI.auth.services;
 
 import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
+import PsykeP.AuthAPI.auth.dtos.RecuperacionResponseDTO;
+import PsykeP.AuthAPI.auth.dtos.RecuperarContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
 import PsykeP.AuthAPI.auth.dtos.RestablecerContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
+import PsykeP.AuthAPI.auth.dtos.VerificarCodigoDTO;
 import PsykeP.AuthAPI.auth.entities.Usuario;
 import PsykeP.AuthAPI.auth.repositories.UsuarioRepository;
 import PsykeP.AuthAPI.exceptions.CorreoYaRegistradoException;
 import PsykeP.AuthAPI.exceptions.CredencialesInvalidasException;
+import PsykeP.AuthAPI.exceptions.RecuperacionException;
 import PsykeP.AuthAPI.exceptions.UsuarioBloqueadoException;
 import PsykeP.AuthAPI.exceptions.UsuarioInactivoException;
+import PsykeP.AuthAPI.exceptions.UsuarioNoEncontradoException;
 import PsykeP.AuthAPI.security.JwtService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -23,7 +29,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -39,7 +44,8 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService;
+    private final CodigoRecuperacionService codigoRecuperacionService;
+    private final CorreoService correoService;
 
     @Transactional
     public AuthResponseDTO login(LoginRequestDTO request, HttpServletResponse response) {
@@ -141,48 +147,59 @@ public class AuthService {
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
-    @Transactional
-    public void solicitarRecuperacionContrasena(String correo) {
-        Usuario usuario = usuarioRepository.findByCorreo(correo)
-                .orElseThrow(() -> new CredencialesInvalidasException("No existe una cuenta registrada con este correo."));
+    public RecuperacionResponseDTO solicitarRecuperacionContrasena(RecuperarContrasenaDTO request) {
+        Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo().trim())
+                .orElseThrow(() -> new UsuarioNoEncontradoException("No existe una cuenta registrada con este correo."));
 
         validarEstadoCuenta(usuario);
+        validarOrigen(request.getOrigen(), usuario.getTipoUsuario());
 
-        // Generar código numérico aleatorio de 6 dígitos
-        String codigo = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        String codigo = codigoRecuperacionService.generarCodigo(usuario.getCorreo());
+        long minutos = codigoRecuperacionService.getSegundosExpiracion() / 60;
 
-        // Guardar código y fecha de expiración (5 minutos)
-        usuario.setCodigoRecuperacion(codigo);
-        usuario.setFechaExpiracionCodigo(LocalDateTime.now().plusMinutes(5));
-        usuarioRepository.save(usuario);
+        if (!correoService.enviarCodigoRecuperacion(usuario.getCorreo(), codigo, minutos)) {
+            codigoRecuperacionService.descartar(usuario.getCorreo());
+            throw new RecuperacionException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo enviar el correo en este momento. Intenta de nuevo en unos minutos.");
+        }
 
-        // Enviar el correo con el código
-        emailService.enviarCodigoRecuperacion(correo, codigo);
+        return RecuperacionResponseDTO.builder()
+                .message("Enviamos un código de verificación a tu correo.")
+                .expiraEnSegundos(codigoRecuperacionService.getSegundosExpiracion())
+                .reenvioEnSegundos(codigoRecuperacionService.getSegundosReenvio())
+                .build();
+    }
+
+    public RecuperacionResponseDTO verificarCodigoRecuperacion(VerificarCodigoDTO request) {
+        String token = codigoRecuperacionService.verificarCodigo(request.getCorreo(), request.getCodigo());
+
+        return RecuperacionResponseDTO.builder()
+                .message("Código verificado. Ya puedes crear tu nueva contraseña.")
+                .tokenRestablecimiento(token)
+                .expiraEnSegundos(codigoRecuperacionService.getSegundosToken())
+                .build();
     }
 
     @Transactional
-    public void restablecerContrasena(RestablecerContrasenaDTO request) {
-        Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo())
-                .orElseThrow(() -> new CredencialesInvalidasException("No existe un usuario registrado con este correo."));
+    public RecuperacionResponseDTO restablecerContrasena(RestablecerContrasenaDTO request) {
+        codigoRecuperacionService.validarToken(request.getCorreo(), request.getTokenRestablecimiento());
 
-        // 1. Validar que exista y coincida el código de verificación
-        if (usuario.getCodigoRecuperacion() == null || !usuario.getCodigoRecuperacion().equals(request.getCodigo())) {
-            throw new CredencialesInvalidasException("El código de verificación es incorrecto.");
+        Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo().trim())
+                .orElseThrow(() -> new UsuarioNoEncontradoException("No existe una cuenta registrada con este correo."));
+
+        validarEstadoCuenta(usuario);
+
+        if (passwordEncoder.matches(request.getNuevaContrasena(), usuario.getContrasena())) {
+            throw new RecuperacionException(HttpStatus.BAD_REQUEST, "La nueva contraseña debe ser diferente a la anterior.");
         }
 
-        // 2. Validar que el código no haya expirado
-        if (usuario.getFechaExpiracionCodigo() == null || usuario.getFechaExpiracionCodigo().isBefore(LocalDateTime.now())) {
-            throw new CredencialesInvalidasException("El código de verificación ha expirado. Solicite uno nuevo.");
-        }
-
-        // 3. Encriptar y actualizar la nueva contraseña
         usuario.setContrasena(passwordEncoder.encode(request.getNuevaContrasena()));
-
-        // 4. Limpiar los campos del código utilizado
-        usuario.setCodigoRecuperacion(null);
-        usuario.setFechaExpiracionCodigo(null);
-
         usuarioRepository.save(usuario);
+        codigoRecuperacionService.consumirToken(request.getCorreo());
+
+        return RecuperacionResponseDTO.builder()
+                .message("Tu contraseña se actualizó correctamente. Ya puedes iniciar sesión.")
+                .build();
     }
 
     private boolean esEntornoSeguro() {

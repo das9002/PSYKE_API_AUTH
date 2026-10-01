@@ -12,12 +12,13 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RecuperarContrasenaDTO {
+public class VerificarCodigoDTO {
 
     @NotBlank(message = "El correo es requerido")
     @Email(message = "Debe ser un correo electrónico válido")
     private String correo;
 
-    @Pattern(regexp = "WEB|MOBILE", message = "El origen debe ser WEB o MOBILE")
-    private String origen;
+    @NotBlank(message = "El código es requerido")
+    @Pattern(regexp = "\\d{6}", message = "El código debe tener 6 dígitos")
+    private String codigo;
 }
