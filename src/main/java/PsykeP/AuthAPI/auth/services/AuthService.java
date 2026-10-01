@@ -170,4 +170,23 @@ public class AuthService {
 
     validarEstadoCuenta(usuario);
     }
+
+    async recuperarContrasena(correo) {
+        const urlBase = typeof CONFIG !== 'undefined' && CONFIG.API_URL ? CONFIG.API_URL : API_URL;
+
+        const response = await fetch(`${urlBase}/auth/recuperar-contrasena`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ correo })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al enviar la solicitud de recuperación');
+        }
+
+        return await response.json();
+    }
 }
