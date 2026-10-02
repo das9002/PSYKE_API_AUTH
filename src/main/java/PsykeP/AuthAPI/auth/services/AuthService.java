@@ -17,8 +17,10 @@ import PsykeP.AuthAPI.exceptions.UsuarioBloqueadoException;
 import PsykeP.AuthAPI.exceptions.UsuarioInactivoException;
 import PsykeP.AuthAPI.exceptions.UsuarioNoEncontradoException;
 import PsykeP.AuthAPI.security.JwtService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,6 +29,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -39,6 +43,8 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuthService {
+
+    private static final String COOKIE_SESION = "psyke_auth_jwt";
 
     private final UsuarioRepository usuarioRepository;
     private final AuthenticationManager authenticationManager;
@@ -67,20 +73,14 @@ public class AuthService {
         usuario.setUltimaConexion(LocalDateTime.now());
 
         final String token = jwtService.generarToken(usuario);
+        escribirCookieSesion(response, token, Duration.ofMillis(jwtService.getJwtExpiration()));
 
-        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
-                .httpOnly(true)
-                .secure(esEntornoSeguro())
-                .sameSite(esEntornoSeguro() ? "None" : "Lax")
-                .path("/")
-                .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
+        boolean esWeb = "WEB".equalsIgnoreCase(request.getOrigen());
 
         return AuthResponseDTO.builder()
-                .token(token)
-                .accessToken(token)
-                .tipoToken("Bearer")
+                .token(esWeb ? null : token)
+                .accessToken(esWeb ? null : token)
+                .tipoToken(esWeb ? "Cookie" : "Bearer")
                 .idUsuario(usuario.getIdUsuario())
                 .correo(usuario.getCorreo())
                 .tipoUsuario(usuario.getTipoUsuario())
@@ -103,15 +103,7 @@ public class AuthService {
 
         Usuario guardado = usuarioRepository.save(usuario);
         final String token = jwtService.generarToken(guardado);
-
-        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
-                .httpOnly(true)
-                .secure(esEntornoSeguro())
-                .sameSite(esEntornoSeguro() ? "None" : "Lax")
-                .path("/")
-                .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
+        escribirCookieSesion(response, token, Duration.ofMillis(jwtService.getJwtExpiration()));
 
         return AuthResponseDTO.builder()
                 .token(token)
@@ -137,14 +129,7 @@ public class AuthService {
     }
 
     public void logout(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", "")
-                .httpOnly(true)
-                .secure(esEntornoSeguro())
-                .sameSite(esEntornoSeguro() ? "None" : "Lax")
-                .path("/")
-                .maxAge(0)
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
+        escribirCookieSesion(response, "", Duration.ZERO);
     }
 
     public RecuperacionResponseDTO solicitarRecuperacionContrasena(RecuperarContrasenaDTO request) {
@@ -202,9 +187,23 @@ public class AuthService {
                 .build();
     }
 
-    private boolean esEntornoSeguro() {
-        String env = System.getenv("SPRING_PROFILES_ACTIVE");
-        return env != null && !env.contains("dev") && !env.contains("local");
+    private void escribirCookieSesion(HttpServletResponse response, String valor, Duration duracion) {
+        ResponseCookie cookie = ResponseCookie.from(COOKIE_SESION, valor)
+                .httpOnly(true)
+                .secure(esConexionSegura())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(duracion)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private boolean esConexionSegura() {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes atributos)) {
+            return false;
+        }
+        HttpServletRequest peticion = atributos.getRequest();
+        return peticion.isSecure() || "https".equalsIgnoreCase(peticion.getHeader("X-Forwarded-Proto"));
     }
 
     private void validarEstadoCuenta(Usuario usuario) {
