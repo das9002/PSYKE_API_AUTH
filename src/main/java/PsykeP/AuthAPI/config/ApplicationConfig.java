@@ -41,4 +41,9 @@ public class ApplicationConfig {
     public PasswordEncoder passwordEncoder() {
         return new Argon2PasswordEncoder(16, 32, 1, 65536, 3);
     }
+
+    @Bean
+    public org.springframework.cache.CacheManager cacheManager() {
+        return new org.springframework.cache.concurrent.ConcurrentMapCacheManager("perfiles");
+    }
 }
