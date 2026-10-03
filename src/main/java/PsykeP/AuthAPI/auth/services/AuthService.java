@@ -19,6 +19,10 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -116,6 +120,7 @@ public class AuthService {
                 .build();
     }
 
+    @Cacheable(value = "perfiles", key = "#correo")
     public UsuarioDTO obtenerPerfil(String correo) {
         Usuario usuario = usuarioRepository.findByCorreo(correo)
                 .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Usuario no autenticado"));
@@ -128,6 +133,17 @@ public class AuthService {
                 .build();
     }
 
+    public Page<UsuarioDTO> listarUsuariosPaginados(Pageable pageable) {
+        return usuarioRepository.findAll(pageable)
+                .map(usuario -> UsuarioDTO.builder()
+                        .idUsuario(usuario.getIdUsuario())
+                        .correo(usuario.getCorreo())
+                        .estadoCuenta(usuario.getEstadoCuenta())
+                        .tipoUsuario(usuario.getTipoUsuario())
+                        .build());
+    }
+
+    @CacheEvict(value = "perfiles", allEntries = true)
     public void logout(HttpServletResponse response) {
         ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", "")
                 .httpOnly(true)

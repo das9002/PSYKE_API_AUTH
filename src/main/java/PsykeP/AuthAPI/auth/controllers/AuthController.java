@@ -43,6 +43,12 @@ public class AuthController {
         return ResponseEntity.ok(perfil);
     }
 
+    @GetMapping("/usuarios")
+    public ResponseEntity<org.springframework.data.domain.Page<UsuarioDTO>> listarUsuarios(
+            @org.springframework.data.web.PageableDefault(size = 10) org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(authService.listarUsuariosPaginados(pageable));
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         authService.logout(response);
