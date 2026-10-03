@@ -19,7 +19,6 @@ public class CorsConfig {
         config.setAllowCredentials(true);
         config.setAllowedOriginPatterns(List.of(
                 "https://psykeweb.vercel.app",
-                "https://*.vercel.app",
                 "https://*.herokuapp.com",
                 "https://api-service-4d465a47b94c.herokuapp.com",
                 "https://api-auth-1b19165bcf87.herokuapp.com",
