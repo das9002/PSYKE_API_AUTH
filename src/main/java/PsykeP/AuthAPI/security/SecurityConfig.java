@@ -51,8 +51,8 @@ public class SecurityConfig {
 
                 // 3. Endpoint /me REQUIERE AUTENTICACIÓN explícita
                 .requestMatchers("/api/auth/me").authenticated()
-                
-                // 4. Cualquier otra petición debe estar autenticada
+                .requestMatchers("/api/auth/usuarios").hasRole("ADMIN")
+                .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
