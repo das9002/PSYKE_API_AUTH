@@ -27,8 +27,7 @@ public class JwtService {
     @Value("${security.jwt.secret-key}")
     private String secretKey;
 
-    // Valor por defecto asignado a 900000 milisegundos (15 minutos)
-    @Value("${security.jwt.expiration-time:900000}")
+    @Value("${security.jwt.expiration-time}")
     private long jwtExpiration;
 
     public long getJwtExpiration() {

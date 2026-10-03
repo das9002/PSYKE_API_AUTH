@@ -50,14 +50,6 @@ public class Usuario implements UserDetails {
     @Column(name = "USU_ULTIMA_CONEXION")
     private LocalDateTime ultimaConexion;
 
-    // --- Campos para el flujo de recuperación de contraseña ---
-
-    @Column(name = "USU_CODIGO_RECUPERACION", length = 10)
-    private String codigoRecuperacion;
-
-    @Column(name = "USU_FECHA_EXPIRACION_CODIGO")
-    private LocalDateTime fechaExpiracionCodigo;
-
     // --- UserDetails Interface ---
 
     @Override

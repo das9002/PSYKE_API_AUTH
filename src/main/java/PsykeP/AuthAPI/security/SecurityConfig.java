@@ -3,8 +3,8 @@ package PsykeP.AuthAPI.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -37,19 +37,8 @@ public class SecurityConfig {
                 })
             )
             .authorizeHttpRequests(auth -> auth
-                // 1. Permitir peticiones pre-flight CORS (OPTIONS)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                
-                // 2. Endpoints PÚBLICOS: login, registro y recuperación de contraseña
-                .requestMatchers(
-                    "/api/auth/login",
-                    "/api/auth/register",
-                    "/api/auth/recuperar-contrasena",
-                    "/api/auth/verificar-codigo",
-                    "/api/auth/restablecer-contrasena"
-                ).permitAll()
-
-                // 3. Endpoint /me REQUIERE AUTENTICACIÓN explícita
+                .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
                 .requestMatchers("/api/auth/me").authenticated()
                 .requestMatchers("/api/auth/usuarios").hasRole("ADMIN")
                 .requestMatchers("/api/auth/**").permitAll()

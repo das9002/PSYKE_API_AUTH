@@ -2,12 +2,8 @@ package PsykeP.AuthAPI.auth.controllers;
 
 import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
-import PsykeP.AuthAPI.auth.dtos.RecuperacionResponseDTO;
-import PsykeP.AuthAPI.auth.dtos.RecuperarContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
-import PsykeP.AuthAPI.auth.dtos.RestablecerContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
-import PsykeP.AuthAPI.auth.dtos.VerificarCodigoDTO;
 import PsykeP.AuthAPI.auth.services.AuthService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -41,7 +37,7 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UsuarioDTO> me(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.status(401).build();
         }
         UsuarioDTO perfil = authService.obtenerPerfil(authentication.getName());
         return ResponseEntity.ok(perfil);
@@ -57,21 +53,5 @@ public class AuthController {
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         authService.logout(response);
         return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/recuperar-contrasena")
-    public ResponseEntity<RecuperacionResponseDTO> solicitarRecuperacionContrasena(
-            @Valid @RequestBody RecuperarContrasenaDTO request) {
-        return ResponseEntity.ok(authService.solicitarRecuperacionContrasena(request));
-    }
-
-    @PostMapping("/verificar-codigo")
-    public ResponseEntity<RecuperacionResponseDTO> verificarCodigo(@Valid @RequestBody VerificarCodigoDTO request) {
-        return ResponseEntity.ok(authService.verificarCodigoRecuperacion(request));
-    }
-
-    @PostMapping("/restablecer-contrasena")
-    public ResponseEntity<RecuperacionResponseDTO> restablecerContrasena(@Valid @RequestBody RestablecerContrasenaDTO request) {
-        return ResponseEntity.ok(authService.restablecerContrasena(request));
     }
 }

@@ -2,26 +2,18 @@ package PsykeP.AuthAPI.auth.services;
 
 import PsykeP.AuthAPI.auth.dtos.AuthResponseDTO;
 import PsykeP.AuthAPI.auth.dtos.LoginRequestDTO;
-import PsykeP.AuthAPI.auth.dtos.RecuperacionResponseDTO;
-import PsykeP.AuthAPI.auth.dtos.RecuperarContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.RegisterRequestDTO;
-import PsykeP.AuthAPI.auth.dtos.RestablecerContrasenaDTO;
 import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
-import PsykeP.AuthAPI.auth.dtos.VerificarCodigoDTO;
 import PsykeP.AuthAPI.auth.entities.Usuario;
 import PsykeP.AuthAPI.auth.repositories.UsuarioRepository;
 import PsykeP.AuthAPI.exceptions.CorreoYaRegistradoException;
 import PsykeP.AuthAPI.exceptions.CredencialesInvalidasException;
-import PsykeP.AuthAPI.exceptions.RecuperacionException;
 import PsykeP.AuthAPI.exceptions.UsuarioBloqueadoException;
 import PsykeP.AuthAPI.exceptions.UsuarioInactivoException;
 import PsykeP.AuthAPI.exceptions.UsuarioNoEncontradoException;
 import PsykeP.AuthAPI.security.JwtService;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -33,8 +25,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -48,14 +38,10 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 @Transactional(readOnly = true)
 public class AuthService {
 
-    private static final String COOKIE_SESION = "psyke_auth_jwt";
-
     private final UsuarioRepository usuarioRepository;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
-    private final CodigoRecuperacionService codigoRecuperacionService;
-    private final CorreoService correoService;
 
     @Transactional
     public AuthResponseDTO login(LoginRequestDTO request, HttpServletResponse response) {
@@ -77,14 +63,20 @@ public class AuthService {
         usuario.setUltimaConexion(LocalDateTime.now());
 
         final String token = jwtService.generarToken(usuario);
-        escribirCookieSesion(response, token, Duration.ofMillis(jwtService.getJwtExpiration()));
 
-        boolean esWeb = "WEB".equalsIgnoreCase(request.getOrigen());
+        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
+                .httpOnly(true)
+                .secure(esEntornoSeguro())
+                .sameSite(esEntornoSeguro() ? "None" : "Lax")
+                .path("/")
+                .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
 
         return AuthResponseDTO.builder()
-                .token(esWeb ? null : token)
-                .accessToken(esWeb ? null : token)
-                .tipoToken(esWeb ? "Cookie" : "Bearer")
+                .token(token)
+                .accessToken(token)
+                .tipoToken("Bearer")
                 .idUsuario(usuario.getIdUsuario())
                 .correo(usuario.getCorreo())
                 .tipoUsuario(usuario.getTipoUsuario())
@@ -107,7 +99,15 @@ public class AuthService {
 
         Usuario guardado = usuarioRepository.save(usuario);
         final String token = jwtService.generarToken(guardado);
-        escribirCookieSesion(response, token, Duration.ofMillis(jwtService.getJwtExpiration()));
+
+        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", token)
+                .httpOnly(true)
+                .secure(esEntornoSeguro())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(Duration.ofMillis(jwtService.getJwtExpiration()))
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
 
         return AuthResponseDTO.builder()
                 .token(token)
@@ -145,81 +145,19 @@ public class AuthService {
 
     @CacheEvict(value = "perfiles", allEntries = true)
     public void logout(HttpServletResponse response) {
-        escribirCookieSesion(response, "", Duration.ZERO);
-    }
-
-    public RecuperacionResponseDTO solicitarRecuperacionContrasena(RecuperarContrasenaDTO request) {
-        Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo().trim())
-                .orElseThrow(() -> new UsuarioNoEncontradoException("No existe una cuenta registrada con este correo."));
-
-        validarEstadoCuenta(usuario);
-        validarOrigen(request.getOrigen(), usuario.getTipoUsuario());
-
-        String codigo = codigoRecuperacionService.generarCodigo(usuario.getCorreo());
-        long minutos = codigoRecuperacionService.getSegundosExpiracion() / 60;
-
-        if (!correoService.enviarCodigoRecuperacion(usuario.getCorreo(), codigo, minutos)) {
-            codigoRecuperacionService.descartar(usuario.getCorreo());
-            throw new RecuperacionException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "No se pudo enviar el correo en este momento. Intenta de nuevo en unos minutos.");
-        }
-
-        return RecuperacionResponseDTO.builder()
-                .message("Enviamos un código de verificación a tu correo.")
-                .expiraEnSegundos(codigoRecuperacionService.getSegundosExpiracion())
-                .reenvioEnSegundos(codigoRecuperacionService.getSegundosReenvio())
-                .build();
-    }
-
-    public RecuperacionResponseDTO verificarCodigoRecuperacion(VerificarCodigoDTO request) {
-        String token = codigoRecuperacionService.verificarCodigo(request.getCorreo(), request.getCodigo());
-
-        return RecuperacionResponseDTO.builder()
-                .message("Código verificado. Ya puedes crear tu nueva contraseña.")
-                .tokenRestablecimiento(token)
-                .expiraEnSegundos(codigoRecuperacionService.getSegundosToken())
-                .build();
-    }
-
-    @Transactional
-    public RecuperacionResponseDTO restablecerContrasena(RestablecerContrasenaDTO request) {
-        codigoRecuperacionService.validarToken(request.getCorreo(), request.getTokenRestablecimiento());
-
-        Usuario usuario = usuarioRepository.findByCorreo(request.getCorreo().trim())
-                .orElseThrow(() -> new UsuarioNoEncontradoException("No existe una cuenta registrada con este correo."));
-
-        validarEstadoCuenta(usuario);
-
-        if (passwordEncoder.matches(request.getNuevaContrasena(), usuario.getContrasena())) {
-            throw new RecuperacionException(HttpStatus.BAD_REQUEST, "La nueva contraseña debe ser diferente a la anterior.");
-        }
-
-        usuario.setContrasena(passwordEncoder.encode(request.getNuevaContrasena()));
-        usuarioRepository.save(usuario);
-        codigoRecuperacionService.consumirToken(request.getCorreo());
-
-        return RecuperacionResponseDTO.builder()
-                .message("Tu contraseña se actualizó correctamente. Ya puedes iniciar sesión.")
-                .build();
-    }
-
-    private void escribirCookieSesion(HttpServletResponse response, String valor, Duration duracion) {
-        ResponseCookie cookie = ResponseCookie.from(COOKIE_SESION, valor)
+        ResponseCookie cookie = ResponseCookie.from("psyke_auth_jwt", "")
                 .httpOnly(true)
-                .secure(esConexionSegura())
-                .sameSite("Lax")
+                .secure(esEntornoSeguro())
+                .sameSite(esEntornoSeguro() ? "None" : "Lax")
                 .path("/")
-                .maxAge(duracion)
+                .maxAge(0)
                 .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        response.addHeader("Set-Cookie", cookie.toString());
     }
 
-    private boolean esConexionSegura() {
-        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes atributos)) {
-            return false;
-        }
-        HttpServletRequest peticion = atributos.getRequest();
-        return peticion.isSecure() || "https".equalsIgnoreCase(peticion.getHeader("X-Forwarded-Proto"));
+    private boolean esEntornoSeguro() {
+        String env = System.getenv("SPRING_PROFILES_ACTIVE");
+        return env != null && !env.contains("dev") && !env.contains("local");
     }
 
     private void validarEstadoCuenta(Usuario usuario) {

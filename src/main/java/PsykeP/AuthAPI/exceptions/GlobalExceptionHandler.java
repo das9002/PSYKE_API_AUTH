@@ -43,11 +43,6 @@ public class GlobalExceptionHandler {
         return construirRespuesta(HttpStatus.CONFLICT, ex.getMessage());
     }
 
-    @ExceptionHandler(RecuperacionException.class)
-    public ResponseEntity<ErrorResponse> handleRecuperacion(RecuperacionException ex) {
-        return construirRespuesta(ex.getStatus(), ex.getMessage(), ex.getDetalles());
-    }
-
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
         log.error("Violación de restricción de integridad en la base de datos", ex);
