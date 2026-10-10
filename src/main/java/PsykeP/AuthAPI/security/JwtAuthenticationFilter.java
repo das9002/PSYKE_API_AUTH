@@ -1,5 +1,6 @@
 package PsykeP.AuthAPI.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -65,13 +66,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            final String userEmail = jwtService.extraerUsername(jwt);
+            // Un solo análisis del token por petición (antes se analizaba 4 veces)
+            final Claims claims = jwtService.extraerTodosLosClaims(jwt);
+            final String userEmail = claims.getSubject();
 
             if (userEmail != null
                     && SecurityContextHolder.getContext().getAuthentication() == null
-                    && jwtService.esTokenValido(jwt)) {
+                    && jwtService.esTokenValido(claims)) {
 
-                Collection<? extends GrantedAuthority> authorities = extraerAuthorities(jwt);
+                Collection<? extends GrantedAuthority> authorities = extraerAuthorities(claims);
 
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userEmail,
@@ -116,37 +119,34 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
-    private Collection<? extends GrantedAuthority> extraerAuthorities(String jwt) {
-        return jwtService.extraerClaim(jwt, claims -> {
-            // A. Soporte para claim "roles" como Lista
-            Object rolesObj = claims.get("roles");
-            if (rolesObj instanceof List<?> roles) {
-                return roles.stream()
-                        .map(role -> {
-                            if (role instanceof Map<?, ?> map) {
-                                Object auth = map.get("authority");
-                                return auth != null ? new SimpleGrantedAuthority(String.valueOf(auth)) : null;
-                            } else if (role instanceof String str) {
-                                return new SimpleGrantedAuthority(str.startsWith("ROLE_") ? str : "ROLE_" + str);
-                            }
-                            return null;
-                        })
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
-            }
+    private Collection<? extends GrantedAuthority> extraerAuthorities(Claims claims) {
+        // A. Soporte para claim "roles" como Lista
+        Object rolesObj = claims.get("roles");
+        if (rolesObj instanceof List<?> roles) {
+            return roles.stream()
+                    .map(role -> {
+                        if (role instanceof Map<?, ?> map) {
+                            Object auth = map.get("authority");
+                            return auth != null ? new SimpleGrantedAuthority(String.valueOf(auth)) : null;
+                        } else if (role instanceof String str) {
+                            return new SimpleGrantedAuthority(str.startsWith("ROLE_") ? str : "ROLE_" + str);
+                        }
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
 
-            // B. Soporte para claim individual "tipoUsuario" o "rol"
-            String singleRole = claims.get("tipoUsuario", String.class);
-            if (singleRole == null) {
-                singleRole = claims.get("rol", String.class);
-            }
-            if (singleRole != null && !singleRole.isBlank()) {
-                String roleFormatted = singleRole.startsWith("ROLE_") ? singleRole : "ROLE_" + singleRole;
-                return List.of(new SimpleGrantedAuthority(roleFormatted));
-            }
+        // B. Soporte para claim individual "tipoUsuario" o "rol"
+        String singleRole = claims.get("tipoUsuario", String.class);
+        if (singleRole == null) {
+            singleRole = claims.get("rol", String.class);
+        }
+        if (singleRole != null && !singleRole.isBlank()) {
+            String roleFormatted = singleRole.startsWith("ROLE_") ? singleRole : "ROLE_" + singleRole;
+            return List.of(new SimpleGrantedAuthority(roleFormatted));
+        }
 
-            return List.<GrantedAuthority>of();
-        });
+        return List.<GrantedAuthority>of();
     }
 }

@@ -64,6 +64,11 @@ public class JwtService {
     public String generarToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities());
+        // La API principal lee el id del token y así no consulta la tabla USUARIOS en cada petición
+        if (userDetails instanceof Usuario usuario) {
+            claims.put("idUsuario", usuario.getIdUsuario());
+            claims.put("tipoUsuario", usuario.getTipoUsuario());
+        }
         return crearToken(claims, userDetails.getUsername());
     }
 
@@ -86,7 +91,8 @@ public class JwtService {
         return claimsResolver.apply(claims);
     }
 
-    private Claims extraerTodosLosClaims(String token) {
+    /** Verifica firma y expiración (lanza JwtException si el token no es válido) y devuelve los claims. */
+    public Claims extraerTodosLosClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
                 .build()
@@ -95,11 +101,16 @@ public class JwtService {
     }
 
     public boolean esTokenValido(String token) {
-        final String username = extraerUsername(token);
-        if (username == null || esTokenExpirado(token)) {
+        return esTokenValido(extraerTodosLosClaims(token));
+    }
+
+    /** Igual que esTokenValido(String) pero con los claims ya leídos, para no analizar el token varias veces. */
+    public boolean esTokenValido(Claims claims) {
+        final String username = claims.getSubject();
+        if (username == null || claims.getExpiration() == null || claims.getExpiration().before(new Date())) {
             return false;
         }
-        if (TIPO_TICKET_CHAT.equals(extraerClaim(token, claims -> claims.get("tipo", String.class)))) {
+        if (TIPO_TICKET_CHAT.equals(claims.get("tipo", String.class))) {
             return false;
         }
         Usuario usuario = usuarioRepository.findByCorreo(username).orElse(null);
@@ -113,12 +124,15 @@ public class JwtService {
         return true;
     }
 
-    private boolean esTokenExpirado(String token) {
-        return extraerClaim(token, Claims::getExpiration).before(new Date());
-    }
+    // La clave se calcula una sola vez en lugar de decodificarla en cada petición
+    private volatile Key signingKey;
 
     private Key getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
+        Key clave = signingKey;
+        if (clave == null) {
+            clave = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
+            signingKey = clave;
+        }
+        return clave;
     }
 }
