@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json");
-                    response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"No autenticado\"}");
+                    response.getWriter().write("{\"status\":401,\"exito\":false,\"mensaje\":\"No hay una sesión activa.\"}");
                 })
             )
             .authorizeHttpRequests(auth -> auth

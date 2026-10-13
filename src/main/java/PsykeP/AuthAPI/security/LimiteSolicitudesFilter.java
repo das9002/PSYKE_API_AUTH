@@ -111,9 +111,9 @@ public class LimiteSolicitudesFilter extends OncePerRequestFilter {
         response.setHeader("Retry-After", String.valueOf(segundos));
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write("{\"status\":429,\"error\":\"Too Many Requests\",\"message\":"
+        response.getWriter().write("{\"status\":429,\"exito\":false,\"mensaje\":"
                 + "\"Demasiados intentos seguidos. Espera " + segundos + " segundos e intenta de nuevo.\","
-                + "\"details\":{\"segundosRestantes\":\"" + segundos + "\"}}");
+                + "\"data\":{\"segundosRestantes\":\"" + segundos + "\"}}");
     }
 
     private static final class Ventana {
