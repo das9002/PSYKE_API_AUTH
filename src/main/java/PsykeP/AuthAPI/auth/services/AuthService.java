@@ -77,10 +77,12 @@ public class AuthService {
 
         usuario.setUltimaConexion(LocalDateTime.now());
 
-        final String token = jwtService.generarToken(usuario);
-        escribirCookieSesion(response, token, Duration.ofMillis(jwtService.getJwtExpiration()));
-
         boolean esWeb = "WEB".equalsIgnoreCase(request.getOrigen());
+        boolean esMovil = "MOBILE".equalsIgnoreCase(request.getOrigen());
+        long duracion = esMovil ? jwtService.getJwtExpirationMovil() : jwtService.getJwtExpiration();
+
+        final String token = jwtService.generarToken(usuario, duracion);
+        escribirCookieSesion(response, token, Duration.ofMillis(duracion));
 
         return AuthResponseDTO.builder()
                 .token(esWeb ? null : token)
@@ -89,7 +91,7 @@ public class AuthService {
                 .idUsuario(usuario.getIdUsuario())
                 .correo(usuario.getCorreo())
                 .tipoUsuario(usuario.getTipoUsuario())
-                .expiraEn(jwtService.getJwtExpiration())
+                .expiraEn(duracion)
                 .build();
     }
 
