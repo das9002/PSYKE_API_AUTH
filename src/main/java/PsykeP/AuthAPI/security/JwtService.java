@@ -35,16 +35,8 @@ public class JwtService {
     public static final String TIPO_TICKET_CHAT = "ws";
     private static final long DURACION_TICKET_CHAT_MS = 60_000;
 
-    // La app móvil guarda el token en el almacenamiento seguro del teléfono: dura más para no pedir login a cada rato
-    @Value("${security.jwt.expiration-time-movil:2592000000}")
-    private long jwtExpirationMovil;
-
     public long getJwtExpiration() {
         return jwtExpiration;
-    }
-
-    public long getJwtExpirationMovil() {
-        return jwtExpirationMovil;
     }
 
     public long getDuracionTicketChatSegundos() {
@@ -70,10 +62,6 @@ public class JwtService {
     }
 
     public String generarToken(UserDetails userDetails) {
-        return generarToken(userDetails, jwtExpiration);
-    }
-
-    public String generarToken(UserDetails userDetails, long duracionMs) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", userDetails.getAuthorities());
         // La API principal lee el id del token y así no consulta la tabla USUARIOS en cada petición
@@ -81,15 +69,15 @@ public class JwtService {
             claims.put("idUsuario", usuario.getIdUsuario());
             claims.put("tipoUsuario", usuario.getTipoUsuario());
         }
-        return crearToken(claims, userDetails.getUsername(), duracionMs);
+        return crearToken(claims, userDetails.getUsername());
     }
 
-    private String crearToken(Map<String, Object> claims, String subject, long duracionMs) {
+    private String crearToken(Map<String, Object> claims, String subject) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subject)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + duracionMs))
+                .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
