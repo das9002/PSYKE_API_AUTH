@@ -160,6 +160,30 @@ public class AuthService {
                 .build();
     }
 
+    /**
+     * Mientras el usuario sigue usando el sistema se le entrega un token nuevo de la misma duración.
+     * Así la sesión solo se cierra por inactividad y no a los 15 minutos de haber entrado.
+     */
+    public AuthResponseDTO renovarSesion(String correo, boolean conCookie, HttpServletResponse response) {
+        Usuario usuario = usuarioRepository.findByCorreo(correo)
+                .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Usuario no autenticado"));
+        validarEstadoCuenta(usuario);
+
+        final String token = jwtService.generarToken(usuario);
+        if (conCookie) {
+            escribirCookieSesion(response, token, Duration.ofMillis(jwtService.getJwtExpiration()));
+        }
+        return AuthResponseDTO.builder()
+                .token(conCookie ? null : token)
+                .accessToken(conCookie ? null : token)
+                .tipoToken(conCookie ? "Cookie" : "Bearer")
+                .idUsuario(usuario.getIdUsuario())
+                .correo(usuario.getCorreo())
+                .tipoUsuario(usuario.getTipoUsuario())
+                .expiraEn(jwtService.getJwtExpiration())
+                .build();
+    }
+
     @CacheEvict(value = "perfiles", allEntries = true)
     public void logout(HttpServletResponse response) {
         escribirCookieSesion(response, "", Duration.ZERO);

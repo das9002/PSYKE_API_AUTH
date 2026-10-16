@@ -50,7 +50,7 @@ public class SecurityConfig {
                 ).permitAll()
 
                 // 3. Endpoint /me REQUIERE AUTENTICACIÓN explícita
-                .requestMatchers("/api/auth/me", "/api/auth/ws-ticket").authenticated()
+                .requestMatchers("/api/auth/me", "/api/auth/ws-ticket", "/api/auth/renovar").authenticated()
                 .requestMatchers("/api/auth/usuarios").hasRole("ADMIN")
                 .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()

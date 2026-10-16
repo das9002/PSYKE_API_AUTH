@@ -38,7 +38,8 @@ public class LimiteSolicitudesFilter extends OncePerRequestFilter {
             "/api/auth/recuperar-contrasena", new Regla("recuperacion", 5, DIEZ_MINUTOS),
             "/api/auth/verificar-codigo", new Regla("verificacion", 10, DIEZ_MINUTOS),
             "/api/auth/restablecer-contrasena", new Regla("restablecer", 10, DIEZ_MINUTOS),
-            "/api/auth/ws-ticket", new Regla("ticket-chat", 30, UN_MINUTO, true)
+            "/api/auth/ws-ticket", new Regla("ticket-chat", 30, UN_MINUTO, true),
+            "/api/auth/renovar", new Regla("renovar", 10, UN_MINUTO, true)
     );
     private static final Regla GENERAL = new Regla("general", 120, UN_MINUTO, true);
 

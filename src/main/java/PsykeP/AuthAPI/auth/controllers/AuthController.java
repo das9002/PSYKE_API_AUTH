@@ -11,6 +11,7 @@ import PsykeP.AuthAPI.auth.dtos.UsuarioDTO;
 import PsykeP.AuthAPI.auth.dtos.VerificarCodigoDTO;
 import PsykeP.AuthAPI.auth.services.AuthService;
 import PsykeP.AuthAPI.common.respuestas.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +67,21 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header("Cache-Control", "no-store")
                 .body(new ApiResponse<>(HttpStatus.OK, "Ticket del chat generado.", authService.generarTicketChat(authentication.getName())));
+    }
+
+    @PostMapping("/renovar")
+    public ResponseEntity<ApiResponse<AuthResponseDTO>> renovar(Authentication authentication,
+                                                                 HttpServletRequest request,
+                                                                 HttpServletResponse response) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse<>(HttpStatus.UNAUTHORIZED, "No hay una sesión activa."));
+        }
+        String cabecera = request.getHeader("Authorization");
+        boolean conCookie = cabecera == null || !cabecera.startsWith("Bearer ");
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store")
+                .body(new ApiResponse<>(HttpStatus.OK, "Sesión renovada.", authService.renovarSesion(authentication.getName(), conCookie, response)));
     }
 
     @PostMapping("/logout")
